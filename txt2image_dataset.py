@@ -66,10 +66,14 @@ class Text2ImageDataset(Dataset):
         
         right_image = bytes(np.array(example['img']))
         right_embed = np.array(example['embeddings'], dtype=float)
-        wrong_name, wrong_example = self.find_wrong_image(example['class']) 
-        # wrong_image = bytes(np.array(self.find_wrong_image(example['class'])))
+        
+        wrong_name, wrong_example = self.find_wrong_image(example['class'])        
         wrong_image = bytes(np.array(wrong_example))
-        inter_embed = np.array(self.find_inter_embed())
+        wrong_index_found = self.image_paths_df.index[self.image_paths_df[2]==(wrong_name[:-2]+'.jpg')].values[0]
+        if wrong_index_found == None:
+            print('ERROR: cannot find image index')
+
+        
 
         # find wrong image bbox
         index_found_wrong = self.image_paths_df.index[self.image_paths_df[2]==(wrong_name[:-2]+'.jpg')].values[0]
@@ -116,10 +120,10 @@ class Text2ImageDataset(Dataset):
                 'right_images': torch.FloatTensor(right_image),
                 'right_embed': torch.FloatTensor(right_embed),
                 'wrong_images': torch.FloatTensor(wrong_image),
-                'inter_embed': torch.FloatTensor(inter_embed),
                 'txt': str(txt),
                 'right_images128': torch.FloatTensor(right_image128),
-                'wrong_images128': torch.FloatTensor(wrong_image128)
+                'wrong_images128': torch.FloatTensor(wrong_image128),
+                'wrong_txt': str()
                 }
 
         sample['right_images'] = sample['right_images'].sub_(127.5).div_(127.5)
@@ -169,3 +173,46 @@ class Text2ImageDataset(Dataset):
             img = rgb
 
         return img.transpose(2, 0, 1)
+
+
+def collate_fn(data):
+    """Creates mini-batch tensors from the list of tuples (image, caption).
+    
+    We should build custom collate_fn rather than using default collate_fn, 
+    because merging caption (including padding) is not supported in default.
+
+    Args:
+        data: dictionary with keys (right_images, ...). 
+            - image: torch tensor of shape (3, 256, 256).
+            - caption: torch tensor of shape (?); variable length.
+
+    Returns:
+        images: torch tensor of shape (batch_size, 3, 256, 256).
+        targets: torch tensor of shape (batch_size, padded_length).
+        lengths: list; valid length for each padded caption.
+    """
+    # Sort a data list by caption length (descending order).
+    data.sort(key=lambda x: len(x['txt']), reverse=True)
+    images, captions, wrong_captions = zip(*data)
+
+    wrong_captions = list(wrong_captions)
+    wrong_captions.sort(key=lambda x: len(x), reverse=True)
+
+    # Merge images (from tuple of 3D tensor to 4D tensor).
+    images = torch.stack(images, 0)
+
+    # Merge captions (from tuple of 1D tensor to 2D tensor).
+    lengths = [len(cap) for cap in captions]
+    targets = torch.zeros(len(captions), max(lengths)).long()
+    for i, cap in enumerate(captions):
+        end = lengths[i]
+        targets[i, :end] = cap[:end]
+
+    # Getting wrong targets(captions)
+    wrong_lengths = [len(cap) for cap in wrong_captions]
+    wrong_targets = torch.zeros(len(wrong_captions), max(wrong_lengths)).long()
+    for i, cap in enumerate(wrong_captions):
+        end = wrong_lengths[i]
+        wrong_targets[i, :end] = cap[:end]
+    
+    return images, targets, lengths, wrong_targets, wrong_lengths
