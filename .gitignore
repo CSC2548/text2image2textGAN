@@ -1,5 +1,6 @@
 pre-trained models/*
 dataset/*
+data/*
 *.pyc
 .idea/
 checkpoints/*

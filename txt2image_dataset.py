@@ -20,8 +20,9 @@ class Text2ImageDataset(Dataset):
         self.dataset = None
         self.dataset_keys = None
         self.split = 'train' if split == 0 else 'valid' if split == 1 else 'test'
-        self.bboxes_df = pd.read_table('bounding_boxes.txt', sep=' ', header=None)
-        self.image_paths_df = pd.read_table('images.txt', sep='\s+|\/+', header=None)   
+        self.bboxes_df = pd.read_table('data/bounding_boxes.txt', sep=' ', header=None)
+        self.image_paths_df = pd.read_table('data/images.txt', sep='\s+|\/+', header=None)   
+        self.birds_caption_path_root = './data/birds_captions'
         self.h5py2int = lambda x: int(np.array(x))
 
     def __len__(self):
@@ -73,7 +74,8 @@ class Text2ImageDataset(Dataset):
         if wrong_index_found == None:
             print('ERROR: cannot find image index')
 
-        
+        wrong_caption_path = wrong_name[:-3] + 'txt'
+        wrong_caption = open(os.path.join(self.birds_caption_root, wrong_caption_path), 'r').readlines()[0]
 
         # find wrong image bbox
         index_found_wrong = self.image_paths_df.index[self.image_paths_df[2]==(wrong_name[:-2]+'.jpg')].values[0]
