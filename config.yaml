@@ -1,0 +1,20 @@
+# Birds CUB dataset
+birds_images_path: '/home/krishna/Documents/UofT/courses/mlcv/project/datasets/cvpr2016_cub/images/'
+birds_embedding_path: '/home/krishna/Documents/UofT/courses/mlcv/project/datasets/cub_icml/'
+birds_text_path: '/home/krishna/Documents/UofT/courses/mlcv/project/datasets/cvpr2016_cub/text_c10/'
+birds_dataset_path: '/home/jeremy/Downloads/birds.hdf5'
+
+val_split_path: '/home/krishna/Documents/UofT/courses/mlcv/project/datasets/cub_icml/valclasses.txt'
+train_split_path: '/home/krishna/Documents/UofT/courses/mlcv/project/datasets/cub_icml/trainclasses.txt'
+test_split_path: '/home/krishna/Documents/UofT/courses/mlcv/project/datasets/cub_icml/testclasses.txt'
+
+
+# flowers dataset
+flowers_images_path: '/home/krishna/Documents/UofT/courses/mlcv/project/datasets/flowers_images'
+flowers_embedding_path: '/home/krishna/Documents/UofT/courses/mlcv/project/datasets/flowers_icml'
+flowers_text_path: '/home/krishna/Documents/UofT/courses/mlcv/project/datasets/cvpr2016_flowers/text_c10'
+flowers_dataset_path: '/home/krishna/Documents/UofT/courses/mlcv/project/datasets/flowers.hdf5'
+
+flowers_val_split_path: '/home/krishna/Documents/UofT/courses/mlcv/project/datasets/flowers_icml/valclasses.txt'
+flowers_train_split_path: '/home/krishna/Documents/UofT/courses/mlcv/project/datasets/flowers_icml/trainclasses.txt'
+flowers_test_split_path: '/home/krishna/Documents/UofT/courses/mlcv/project/datasets/flowers_icml/testclasses.txt'
