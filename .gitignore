@@ -1,3 +1,12 @@
+pre-trained models/*
+dataset/*
+*.pyc
+.idea/
+checkpoints/*
+results/*
+config.yaml
+*.pkl
+bounding_boxes.txt
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

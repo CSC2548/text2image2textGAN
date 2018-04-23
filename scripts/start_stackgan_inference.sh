@@ -1,0 +1,1 @@
+python3 runtime.py --pre_trained_disc_A=./checkpoints/disc_stage_1_epoch_2.pth --pre_trained_gen_A=./checkpoints/gen_stage_1_epoch_2.pth --pre_trained_disc_B=./checkpoints/disc_stage_2_epoch_2.pth --pre_trained_gen_B=./checkpoints/gen_stage_2_epoch_2.pth --type=stackgan --inference --split=2 --dataset=birds

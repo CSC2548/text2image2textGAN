@@ -1,0 +1,1 @@
+python3 runtime.py --type=inverse_gan --epochs=200
