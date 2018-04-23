@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 from txt2image_dataset import Text2ImageDataset
 from models.gan_factory import gan_factory
-from utils import Utils, Logger
+from utils import Utils
 from PIL import Image
 import os
 from tqdm import tqdm
@@ -86,7 +86,6 @@ class Trainer(object):
         self.optimD2 = torch.optim.Adam(self.discriminator2.parameters(), lr=self.lr, betas=(self.beta1, 0.999))
         self.optimG2 = torch.optim.Adam(self.generator2.parameters(), lr=self.lr, betas=(self.beta1, 0.999))
 
-        self.logger = Logger(vis_screen)
         self.checkpoints_path = './checkpoints/'
         self.save_path = save_path
         self.type = type
@@ -230,11 +229,6 @@ class Trainer(object):
 
                 gen_losses.append(g_loss.data[0])
                 disc_losses.append(d_loss.data[0])
-                #if iteration % 5 == 0:
-                #    self.logger.log_iteration_gan(epoch,d_loss, g_loss, real_score, fake_score)
-                #    self.logger.draw(right_images, fake_images)
-
-            #self.logger.plot_epoch_w_scores(epoch)
 
             with open('gen.pkl', 'wb') as f_gen, open('disc.pkl', 'wb') as f_disc:
                 pickle.dump(gen_losses, f_gen)
@@ -475,8 +469,6 @@ class Trainer(object):
 
             if(gan_type=='stackgan'):
                 fake_images = self.generator2(fake_images, right_embed)
-
-            self.logger.draw(right_images, fake_images)
 
             for image, t in zip(fake_images, txt):
                 im = Image.fromarray(image.data.mul_(127.5).add_(127.5).byte().permute(1, 2, 0).cpu().numpy())

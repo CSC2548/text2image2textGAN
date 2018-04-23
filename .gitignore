@@ -6,6 +6,7 @@ checkpoints/*
 results/*
 *.pkl
 bounding_boxes.txt
+images.txt
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

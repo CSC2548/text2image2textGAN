@@ -1,4 +1,4 @@
-from models import gan, gan_cls, wgan_cls, wgan, gan_inverse
+from models import gan_cls
 
 class gan_factory(object):
 
