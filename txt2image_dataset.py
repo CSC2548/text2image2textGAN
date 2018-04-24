@@ -11,18 +11,22 @@ import pdb
 import torch.nn.functional as F
 import pandas as pd
 import torchvision.transforms as transforms
+from build_vocab import *
+import nltk
 
 class Text2ImageDataset(Dataset):
 
-    def __init__(self, datasetFile, transform=None, split=0):
+    def __init__(self, datasetFile, dataset_type, vocab, transform=None, split=0):
         self.datasetFile = datasetFile
+        self.dataset_type = dataset_type
+        self.vocab = vocab
         self.transform = transform
         self.dataset = None
         self.dataset_keys = None
         self.split = 'train' if split == 0 else 'valid' if split == 1 else 'test'
         self.bboxes_df = pd.read_table('data/bounding_boxes.txt', sep=' ', header=None)
-        self.image_paths_df = pd.read_table('data/images.txt', sep='\s+|\/+', header=None)   
-        self.birds_caption_path_root = './data/birds_captions'
+        self.image_paths_df = pd.read_table('data/images.txt', sep='\s+|\/+', header=None)
+        self.birds_caption_path_root = './data/birds_captions/'
         self.h5py2int = lambda x: int(np.array(x))
 
     def __len__(self):
@@ -54,48 +58,51 @@ class Text2ImageDataset(Dataset):
         example_name = self.dataset_keys[idx]
         # example_name = self.dataset_keys[0]
         example = self.dataset[self.split][example_name]
-        index_found = self.image_paths_df.index[self.image_paths_df[2]==(example_name[:-2]+'.jpg')].values[0]
-        if index_found == None:
-            print('ERROR: cannot find image index')
 
-        # find right image bbox
-        df_bbox = self.bboxes_df.iloc[[index_found]]
-        bbox_x = df_bbox[1].values[0]
-        bbox_y = df_bbox[2].values[0]
-        bbox_w = df_bbox[3].values[0]
-        bbox_h = df_bbox[4].values[0]
-        
         right_image = bytes(np.array(example['img']))
         right_embed = np.array(example['embeddings'], dtype=float)
-        
-        wrong_name, wrong_example = self.find_wrong_image(example['class'])        
+
+        wrong_name, wrong_example = self.find_wrong_image(example['class']) 
         wrong_image = bytes(np.array(wrong_example))
-        wrong_index_found = self.image_paths_df.index[self.image_paths_df[2]==(wrong_name[:-2]+'.jpg')].values[0]
+        wrong_index_found = self.image_paths_df.index[self.image_paths_df[2]==(example_name[:-2]+'.jpg')].values[0]
         if wrong_index_found == None:
             print('ERROR: cannot find image index')
+        wrong_txt_sub_path = self.image_paths_df.iloc[[wrong_index_found]][1].values[0] + '/' + self.image_paths_df.iloc[[wrong_index_found]][2].values[0][:-3] + 'txt'
+        wrong_txt_path = self.birds_caption_path_root + wrong_txt_sub_path
+        wrong_txt = open(wrong_txt_path, 'r').readlines()[0]
 
-        wrong_caption_path = wrong_name[:-3] + 'txt'
-        wrong_caption = open(os.path.join(self.birds_caption_root, wrong_caption_path), 'r').readlines()[0]
+        if self.dataset_type == 'birds': 
+            index_found = self.image_paths_df.index[self.image_paths_df[2]==(example_name[:-2]+'.jpg')].values[0]
+            if index_found == None:
+                print('ERROR: cannot find image index')
 
-        # find wrong image bbox
-        index_found_wrong = self.image_paths_df.index[self.image_paths_df[2]==(wrong_name[:-2]+'.jpg')].values[0]
-        if index_found_wrong == None:
-            print('ERROR: cannot find wrong image')
+            # find right image bbox
+            df_bbox = self.bboxes_df.iloc[[index_found]]
+            bbox_x = df_bbox[1].values[0]
+            bbox_y = df_bbox[2].values[0]
+            bbox_w = df_bbox[3].values[0]
+            bbox_h = df_bbox[4].values[0]
+        
+            # find wrong image bbox
+            index_found_wrong = self.image_paths_df.index[self.image_paths_df[2]==(wrong_name[:-2]+'.jpg')].values[0]
+            if index_found_wrong == None:
+                print('ERROR: cannot find wrong image')
 
-        df_bbox_wrong = self.bboxes_df.iloc[[index_found_wrong]]
-        wrong_bbox_x = df_bbox_wrong[1].values[0]
-        wrong_bbox_y = df_bbox_wrong[2].values[0]
-        wrong_bbox_w = df_bbox_wrong[3].values[0]
-        wrong_bbox_h = df_bbox_wrong[4].values[0]
+            df_bbox_wrong = self.bboxes_df.iloc[[index_found_wrong]]
+            wrong_bbox_x = df_bbox_wrong[1].values[0]
+            wrong_bbox_y = df_bbox_wrong[2].values[0]
+            wrong_bbox_w = df_bbox_wrong[3].values[0]
+            wrong_bbox_h = df_bbox_wrong[4].values[0]
 
         byte_right_image = io.BytesIO(right_image)
         byte_wrong_image = io.BytesIO(wrong_image)
 
         right_image = Image.open(byte_right_image)
         wrong_image = Image.open(byte_wrong_image)
-        
-        right_image = self.crop_image(right_image, bbox=[bbox_x, bbox_y, bbox_w, bbox_h]) 
-        wrong_image = self.crop_image(wrong_image, bbox=[wrong_bbox_x, wrong_bbox_y, wrong_bbox_w, wrong_bbox_h]) 
+
+        if self.dataset_type == 'birds':
+            right_image = self.crop_image(right_image, bbox=[bbox_x, bbox_y, bbox_w, bbox_h]) 
+            wrong_image = self.crop_image(wrong_image, bbox=[wrong_bbox_x, wrong_bbox_y, wrong_bbox_w, wrong_bbox_h]) 
 
         # right_image = Image.open(byte_right_image).resize((64, 64))
         # wrong_image = Image.open(byte_wrong_image).resize((64, 64))
@@ -118,14 +125,29 @@ class Text2ImageDataset(Dataset):
 
         txt = np.array(example['txt']).astype(str)
 
+        # preprocess txt and wrong_txt
+        tokens = nltk.tokenize.word_tokenize(str(txt).lower())
+        caption = []
+        caption.append(self.vocab('<start>'))
+        caption.extend([self.vocab(token) for token in tokens])
+        caption.append(self.vocab('<end>'))
+        caption = torch.Tensor(caption)
+
+        wrong_tokens = nltk.tokenize.word_tokenize(str(wrong_txt).lower())
+        wrong_caption = []
+        wrong_caption.append(self.vocab('<start>'))
+        wrong_caption.extend([self.vocab(token) for token in wrong_tokens])
+        wrong_caption.append(vocab('<end>'))
+        wrong_caption = torch.Tensor(wrong_caption)
+
         sample = {
                 'right_images': torch.FloatTensor(right_image),
                 'right_embed': torch.FloatTensor(right_embed),
                 'wrong_images': torch.FloatTensor(wrong_image),
-                'txt': str(txt),
+                'caption': str(caption),
                 'right_images128': torch.FloatTensor(right_image128),
                 'wrong_images128': torch.FloatTensor(wrong_image128),
-                'wrong_txt': str()
+                'wrong_caption': str(wrong_caption)
                 }
 
         sample['right_images'] = sample['right_images'].sub_(127.5).div_(127.5)
@@ -184,15 +206,15 @@ def collate_fn(data):
     because merging caption (including padding) is not supported in default.
 
     Args:
-        data: dictionary with keys (right_images, ...). 
-            - image: torch tensor of shape (3, 256, 256).
-            - caption: torch tensor of shape (?); variable length.
+        data: dictionary with keys (right_images, right_embed, wrong_images, txt, 
+                                    right_images128, wrong_images128, wrong_txt). 
 
     Returns:
-        images: torch tensor of shape (batch_size, 3, 256, 256).
-        targets: torch tensor of shape (batch_size, padded_length).
-        lengths: list; valid length for each padded caption.
+        sample: dictionary with keys sorted by len(txt) for right images/embed etc,
+                                   and by len(wrong_txt) for wrong images, wrong_txt.
     """
+    pdb.set_trace()
+
     # Sort a data list by caption length (descending order).
     data.sort(key=lambda x: len(x['txt']), reverse=True)
     images, captions, wrong_captions = zip(*data)

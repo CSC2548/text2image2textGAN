@@ -5,7 +5,7 @@ from torch import nn
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 
-from txt2image_dataset import Text2ImageDataset
+from txt2image_dataset import Text2ImageDataset, collate_fn
 from models.gan_factory import gan_factory
 from utils import Utils
 from PIL import Image
@@ -58,17 +58,20 @@ class Trainer(object):
         else:
             self.generator2.apply(Utils.weights_init)
 
+        with open(vocab_path, 'rb') as f:
+            vocab = pickle.load(f)
+
         if dataset == 'birds':
-            self.dataset = Text2ImageDataset(config['birds_dataset_path'], split=split)
+            self.dataset = Text2ImageDataset(config['birds_dataset_path'], dataset_type='birds', vocab=vocab, split=split)
         elif dataset == 'flowers':
-            self.dataset = Text2ImageDataset(config['flowers_dataset_path'], split=split)
+            self.dataset = Text2ImageDataset(config['flowers_dataset_path'], dataset_type='flowers', vocab=vocab, split=split)
         else:
             print('Dataset not supported, please select either birds or flowers.')
             exit()
 
         self.noise_dim = 100
         self.batch_size = batch_size
-        self.num_workers = num_workers
+        self.num_workers = 0
         self.lr = lr
         self.beta1 = 0.5
         self.num_epochs = epochs
@@ -78,7 +81,7 @@ class Trainer(object):
         self.l2_coef = l2_coef
 
         self.data_loader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=True,
-                                num_workers=self.num_workers)
+                                num_workers=self.num_workers, collate_fn=collate_fn)
 
         self.optimD = torch.optim.Adam(self.discriminator.parameters(), lr=self.lr, betas=(self.beta1, 0.999))
         self.optimG = torch.optim.Adam(self.generator.parameters(), lr=self.lr, betas=(self.beta1, 0.999))

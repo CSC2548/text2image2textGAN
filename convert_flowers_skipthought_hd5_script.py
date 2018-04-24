@@ -15,8 +15,10 @@ import sys
 sys.path.append('skip-thoughts.torch/pytorch')
 from skipthoughts import UniSkip
 dir_st = 'data/skip-thoughts'
-import tqdm
+from tqdm import tqdm
 import pickle
+import re
+import nltk
 
 with open('config.yaml', 'r') as f:
     config = yaml.load(f)
@@ -95,7 +97,7 @@ def build_vocab():
 
 # vocab = build_vocab()
 # with open('data/flowers_vocab.pkl', 'wb') as f:
-#     pickle.dump(vocab, f)
+#    pickle.dump(vocab, f)
 
 with open('data/flowers_vocab.pkl', 'rb') as f:
     vocab = pickle.load(f)
@@ -113,7 +115,7 @@ def get_ids(tokens, vocab):
     return ids
 
 
-for _class in sorted(os.listdir(embedding_path)):
+for _class in tqdm(sorted(os.listdir(embedding_path))):
     split = ''
     if _class in train_classes:
         split = train
@@ -175,4 +177,4 @@ for _class in sorted(os.listdir(embedding_path)):
             ex.create_dataset('class', data=_class)
             ex.create_dataset('txt', data=txt[c].astype(object), dtype=dt)
 
-        print(example_name, txt[1], _class)
+        #print(example_name, txt[1], _class)
