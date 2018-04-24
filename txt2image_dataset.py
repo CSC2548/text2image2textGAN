@@ -218,37 +218,60 @@ def collate_fn(data):
     because merging caption (including padding) is not supported in default.
 
     Args:
-        data: dictionary with keys (right_images, right_embed, wrong_images, txt, 
-                                    right_images128, wrong_images128, wrong_txt). 
+        data: dictionary with keys (right_images, right_embed, wrong_images, caption, 
+                                    right_images128, wrong_images128, wrong_caption). 
 
     Returns:
-        sample: dictionary with keys sorted by len(txt) for right images/embed etc,
-                                   and by len(wrong_txt) for wrong images, wrong_txt.
+        sample: dictionary with keys sorted by len(caption) for right images/embed etc,
+                                   and by len(wrong_caption) for wrong images, wrong_caption.
     """
-    pdb.set_trace()
+
+    collate_data = {}
 
     # Sort a data list by caption length (descending order).
-    data.sort(key=lambda x: len(x['txt']), reverse=True)
-    images, captions, wrong_captions = zip(*data)
+    data.sort(key=lambda x: x['caption'].size(0), reverse=True)
 
-    wrong_captions = list(wrong_captions)
-    wrong_captions.sort(key=lambda x: len(x), reverse=True)
+    captions = []
+    right_images = []
+    right_embeds = []
+    wrong_images = []
+    right_images128 = []
+    wrong_images128 = []
+    for i in range(len(data)):
+        captions.append(data[i]['caption'])
+        right_images.append(data[i]['right_images'])
+        right_embeds.append(data[i]['right_embed'])
+        wrong_images.append(data[i]['wrong_images'])
+        right_images128.append(data[i]['right_images128'])
+        wrong_images128.append(data[i]['wrong_images128'])
+         
 
-    # Merge images (from tuple of 3D tensor to 4D tensor).
-    images = torch.stack(images, 0)
-
-    # Merge captions (from tuple of 1D tensor to 2D tensor).
+    # sort and get captions, lengths, images, embeds etc
     lengths = [len(cap) for cap in captions]
-    targets = torch.zeros(len(captions), max(lengths)).long()
+    collate_data['lengths'] = lengths
+    collate_data['captions'] = torch.zeros(len(captions), max(lengths)).long()
     for i, cap in enumerate(captions):
         end = lengths[i]
-        targets[i, :end] = cap[:end]
+        collate_data['captions'][i, :end] = cap[:end]
 
-    # Getting wrong targets(captions)
-    wrong_lengths = [len(cap) for cap in wrong_captions]
-    wrong_targets = torch.zeros(len(wrong_captions), max(wrong_lengths)).long()
+    collate_data['right_images'] = torch.stack(right_images, 0)
+    collate_data['right_embed'] = torch.stack(right_embeds, 0)
+    collate_data['wrong_images'] = torch.stack(wrong_images, 0)
+    collate_data['right_images128'] = torch.stack(right_images128, 0)
+    collate_data['wrong_images128'] = torch.stack(wrong_images128, 0)
+
+    # sort and get wrong_captions, wrong_lengths
+    wrong_captions = []
+    wrong_lengths = []
+    for i in range(len(data)):
+         wrong_captions.append(data[i]['wrong_caption'])
+    wrong_captions.sort(key=lambda x: len(x), reverse=True)
+    wrong_lengths = [len(cap) for cap in wrong_captions]    
+    collate_data['wrong_lengths'] = wrong_lengths
+    collate_data['wrong_captions'] = torch.zeros(len(wrong_captions), max(wrong_lengths)).long()
     for i, cap in enumerate(wrong_captions):
         end = wrong_lengths[i]
-        wrong_targets[i, :end] = cap[:end]
-    
-    return images, targets, lengths, wrong_targets, wrong_lengths
+        collate_data['wrong_captions'][i, :end] = cap[:end]
+   
+ 
+    return collate_data

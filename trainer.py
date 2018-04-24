@@ -263,7 +263,7 @@ class Trainer(object):
         disc_losses = []
         for epoch in tqdm(range(self.num_epochs)):
             for sample in tqdm(self.data_loader):
-                # pdb.set_trace()
+                pdb.set_trace()
                 iteration += 1
                 # sample.keys() = dict_keys(['right_images', 'wrong_images', 'inter_embed', 'right_embed', 'txt'])
                 right_images = sample['right_images'] # 64x3x64x64
