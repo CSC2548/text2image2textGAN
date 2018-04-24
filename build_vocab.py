@@ -35,13 +35,17 @@ def build_vocab(filepath, threshold):
     counter = Counter()
     for subdir, dirs, files in os.walk(filepath):
         for caption_file in tqdm(files):
+            if caption_file[-3:] != 'txt':
+                continue
             with open(os.path.join(subdir, caption_file), 'r') as f:
                 captions = f.readlines()
                 for caption in captions:
+                    caption = caption.strip()
                     caption = caption.encode('ascii', 'ignore')
                     caption = caption.decode('ascii')
-                    caption = re.sub(r'[!\"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~]+', '', caption)
-                    tokens = nltk.tokenize.word_tokenize(caption.lower())
+                    exclude = set(string.punctuation)
+                    preproc_caption = ''.join(ch for ch in caption if ch not in exclude)
+                    tokens = nltk.tokenize.word_tokenize(preproc_caption.lower())
                     counter.update(tokens)
 
     # If the word frequency is less than 'threshold', then the word is discarded.
@@ -74,11 +78,12 @@ if __name__ == '__main__':
     parser.add_argument('--caption_path', type=str, 
                         #default='/usr/share/mscoco/annotations/captions_train2014.json', 
                         # default='./data/annotations/captions_train2014.json',
-                        default='./data/birds_captions/',
+                        # default='./data/birds_captions/',
+                        default='./data/text_c10/',
                         help='path for train annotation file')
-    parser.add_argument('--vocab_path', type=str, default='./data/birds_vocab_thresh_6.pkl', 
+    parser.add_argument('--vocab_path', type=str, default='./data/flowers_vocab.pkl', 
                         help='path for saving vocabulary wrapper')
-    parser.add_argument('--threshold', type=int, default=6, 
+    parser.add_argument('--threshold', type=int, default=4, 
                         help='minimum word count threshold')
     args = parser.parse_args()
     main(args)

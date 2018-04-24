@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 
 import pdb
 import pickle
+from build_vocab import Vocabulary 
 
 is_cuda = torch.cuda.is_available()
 
@@ -58,12 +59,13 @@ class Trainer(object):
         else:
             self.generator2.apply(Utils.weights_init)
 
-        with open(vocab_path, 'rb') as f:
-            vocab = pickle.load(f)
-
         if dataset == 'birds':
+            with open('./data/birds_vocab.pkl', 'rb') as f:
+                vocab = pickle.load(f)
             self.dataset = Text2ImageDataset(config['birds_dataset_path'], dataset_type='birds', vocab=vocab, split=split)
         elif dataset == 'flowers':
+            with open('./data/flowers_vocab.pkl', 'rb') as f:
+                vocab = pickle.load(f)
             self.dataset = Text2ImageDataset(config['flowers_dataset_path'], dataset_type='flowers', vocab=vocab, split=split)
         else:
             print('Dataset not supported, please select either birds or flowers.')

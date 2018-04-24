@@ -62,16 +62,16 @@ class Text2ImageDataset(Dataset):
         right_image = bytes(np.array(example['img']))
         right_embed = np.array(example['embeddings'], dtype=float)
 
-        wrong_name, wrong_example = self.find_wrong_image(example['class']) 
+        wrong_name, wrong_example, wrong_txt = self.find_wrong_image(example['class']) 
         wrong_image = bytes(np.array(wrong_example))
-        wrong_index_found = self.image_paths_df.index[self.image_paths_df[2]==(example_name[:-2]+'.jpg')].values[0]
-        if wrong_index_found == None:
-            print('ERROR: cannot find image index')
-        wrong_txt_sub_path = self.image_paths_df.iloc[[wrong_index_found]][1].values[0] + '/' + self.image_paths_df.iloc[[wrong_index_found]][2].values[0][:-3] + 'txt'
-        wrong_txt_path = self.birds_caption_path_root + wrong_txt_sub_path
-        wrong_txt = open(wrong_txt_path, 'r').readlines()[0]
+        if self.dataset_type=='birds':
+            wrong_index_found = self.image_paths_df.index[self.image_paths_df[2]==(example_name[:-2]+'.jpg')].values[0]
+            if wrong_index_found == None:
+                print('ERROR: cannot find image index')
+            wrong_txt_sub_path = self.image_paths_df.iloc[[wrong_index_found]][1].values[0] + '/' + self.image_paths_df.iloc[[wrong_index_found]][2].values[0][:-3] + 'txt'
+            wrong_txt_path = self.birds_caption_path_root + wrong_txt_sub_path
+            wrong_txt = open(wrong_txt_path, 'r').readlines()[0]
 
-        if self.dataset_type == 'birds': 
             index_found = self.image_paths_df.index[self.image_paths_df[2]==(example_name[:-2]+'.jpg')].values[0]
             if index_found == None:
                 print('ERROR: cannot find image index')
@@ -126,28 +126,40 @@ class Text2ImageDataset(Dataset):
         txt = np.array(example['txt']).astype(str)
 
         # preprocess txt and wrong_txt
-        tokens = nltk.tokenize.word_tokenize(str(txt).lower())
+        txt = str(txt)
+        txt = txt.strip()
+        txt = txt.encode('ascii', 'ignore')
+        txt = txt.decode('ascii')
+        exclude = set(string.punctuation)
+        preproc_txt = ''.join(ch for ch in txt if ch not in exclude)
+        tokens = nltk.tokenize.word_tokenize(preproc_txt.lower())
         caption = []
         caption.append(self.vocab('<start>'))
         caption.extend([self.vocab(token) for token in tokens])
         caption.append(self.vocab('<end>'))
         caption = torch.Tensor(caption)
 
-        wrong_tokens = nltk.tokenize.word_tokenize(str(wrong_txt).lower())
+
+        wrong_txt = wrong_txt.strip()
+        wrong_txt = wrong_txt.encode('ascii', 'ignore')
+        wrong_txt = wrong_txt.decode('ascii')
+        exclude = set(string.punctuation)
+        preproc_wrong_txt = ''.join(ch for ch in wrong_txt if ch not in exclude)
+        wrong_tokens = nltk.tokenize.word_tokenize(preproc_wrong_txt.lower())
         wrong_caption = []
         wrong_caption.append(self.vocab('<start>'))
         wrong_caption.extend([self.vocab(token) for token in wrong_tokens])
-        wrong_caption.append(vocab('<end>'))
+        wrong_caption.append(self.vocab('<end>'))
         wrong_caption = torch.Tensor(wrong_caption)
 
         sample = {
                 'right_images': torch.FloatTensor(right_image),
                 'right_embed': torch.FloatTensor(right_embed),
                 'wrong_images': torch.FloatTensor(wrong_image),
-                'caption': str(caption),
+                'caption': caption,
                 'right_images128': torch.FloatTensor(right_image128),
                 'wrong_images128': torch.FloatTensor(wrong_image128),
-                'wrong_caption': str(wrong_caption)
+                'wrong_caption': wrong_caption
                 }
 
         sample['right_images'] = sample['right_images'].sub_(127.5).div_(127.5)
@@ -165,7 +177,7 @@ class Text2ImageDataset(Dataset):
         _category = example['class']
 
         if _category != category:
-            return example_name, example['img']
+            return example_name, example['img'], str(np.array(example['txt']))
 
         return self.find_wrong_image(category)
 
