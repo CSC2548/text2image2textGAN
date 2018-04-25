@@ -13,6 +13,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.swp
+fitures/*
+*.zip
+*.swp
 
 # C extensions
 *.so

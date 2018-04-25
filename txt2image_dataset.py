@@ -157,6 +157,7 @@ class Text2ImageDataset(Dataset):
                 'right_embed': torch.FloatTensor(right_embed),
                 'wrong_images': torch.FloatTensor(wrong_image),
                 'caption': caption,
+                'txt': txt,
                 'right_images128': torch.FloatTensor(right_image128),
                 'wrong_images128': torch.FloatTensor(wrong_image128),
                 'wrong_caption': wrong_caption
@@ -237,7 +238,9 @@ def collate_fn(data):
     wrong_images = []
     right_images128 = []
     wrong_images128 = []
+    collate_data['txt'] = []
     for i in range(len(data)):
+        collate_data['txt'].append(data[i]['txt'])
         captions.append(data[i]['caption'])
         right_images.append(data[i]['right_images'])
         right_embeds.append(data[i]['right_embed'])

@@ -18,10 +18,11 @@ class EncoderCNN(nn.Module):
         
         alexnet = models.alexnet(pretrained=True)
         self.alexnet_features = alexnet.features
-        modules = list(alexnet.classifier.children())[:-1]      # delete the last fc layer.
+        # modules = list(alexnet.classifier.children())[:-1]      # delete the last fc layer.
 
-        self.alexnet_classifier = nn.Sequential(*modules)
-        self.linear = nn.Linear(list(alexnet.children())[-1][-1].in_features, embed_size)
+        # self.alexnet_classifier = nn.Sequential(*modules)
+        # self.linear = nn.Linear(list(alexnet.children())[-1][-1].in_features, embed_size)
+        self.linear = nn.Linear(2304, embed_size)
         self.bn = nn.BatchNorm1d(embed_size, momentum=0.01)
         self.init_weights()
         
@@ -34,10 +35,10 @@ class EncoderCNN(nn.Module):
         """Extract the image feature vectors."""
         #features = self.resnet(images)
         features = self.alexnet_features(images)
-        features = features.view(features.size(0), 256 * 6 * 6)
-        features = self.alexnet_classifier(features)
         features = Variable(features.data)
         features = features.view(features.size(0), -1)
+        # features = self.alexnet_classifier(features)
+        # features = features.view(features.size(0), -1)
         features = self.bn(self.linear(features))
         return features
     

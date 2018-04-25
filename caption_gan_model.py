@@ -8,7 +8,7 @@ import pdb
 
 class CaptionDiscriminator(nn.Module):
     def __init__(self, embed_size, hidden_size, vocab_size, num_layers):
-        super(Discriminator, self).__init__()
+        super(CaptionDiscriminator, self).__init__()
         self.embed = nn.Embedding(vocab_size, embed_size)
         self.image_feature_encoder = EncoderCNN(embed_size)
         self.sentence_feature_encoder = nn.LSTM(embed_size, hidden_size, num_layers, batch_first=True)
@@ -38,7 +38,7 @@ class CaptionDiscriminator(nn.Module):
 
 class CaptionGenerator(nn.Module):
     def __init__(self, embed_size, hidden_size, vocab_size, num_layers):
-        super(Generator, self).__init__()
+        super(CaptionGenerator, self).__init__()
         self.encoder = EncoderCNN(embed_size)
         self.decoder = DecoderRNN(embed_size, hidden_size, vocab_size, num_layers)
         self.features = None

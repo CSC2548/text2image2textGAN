@@ -69,22 +69,22 @@ class Trainer(object):
         if dataset == 'birds':
             with open('./data/birds_vocab.pkl', 'rb') as f:
                 self.vocab = pickle.load(f)
-            self.dataset = Text2ImageDataset(config['birds_dataset_path'], dataset_type='birds', vocab=vocab, split=split)
+            self.dataset = Text2ImageDataset(config['birds_dataset_path'], dataset_type='birds', vocab=self.vocab, split=split)
         elif dataset == 'flowers':
             with open('./data/flowers_vocab.pkl', 'rb') as f:
                 self.vocab = pickle.load(f)
-            self.dataset = Text2ImageDataset(config['flowers_dataset_path'], dataset_type='flowers', vocab=vocab, split=split)
+            self.dataset = Text2ImageDataset(config['flowers_dataset_path'], dataset_type='flowers', vocab=self.vocab, split=split)
         else:
             print('Dataset not supported, please select either birds or flowers.')
             exit()
 
         self.noise_dim = 100
         self.batch_size = batch_size
-        self.num_workers = 0
         self.lr = lr
         self.beta1 = 0.5
         self.num_epochs = epochs
         self.DITER = diter
+        self.num_workers = num_workers
 
         self.l1_coef = l1_coef
         self.l2_coef = l2_coef
@@ -110,7 +110,7 @@ class Trainer(object):
         self.gen_pretrain_num_epochs = 20
         self.disc_pretrain_num_epochs = 5
 
-        self.figure_path = './figures'
+        self.figure_path = './figures/'
 
 
     def train(self, cls=False, interp=False):
@@ -130,7 +130,6 @@ class Trainer(object):
         
         if not os.path.exists(self.figure_path):
             os.makedirs(self.figure_path)
-
 
         # Build the models (Gen)
         generator = CaptionGenerator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers)
@@ -153,13 +152,17 @@ class Trainer(object):
 
         disc_losses = []
         gen_losses = []
-        for epoch in tqdm(range(self.pretrain_num_epochs)):
+        for epoch in tqdm(range(max([int(self.gen_pretrain_num_epochs), int(self.disc_pretrain_num_epochs)]))):
             for sample in self.data_loader:
-                images = sample['right_images'] # 64x3x64x64
+                images = sample['right_images128'] # 64x3x128x128
                 captions = sample['captions']
                 lengths = sample['lengths']
                 wrong_captions = sample['wrong_captions']
                 wrong_lengths = sample['wrong_lengths']
+
+                images = to_var(images, volatile=True)
+                captions = to_var(captions)
+                wrong_captions = to_var(wrong_captions)
                 
                 targets = pack_padded_sequence(captions, lengths, batch_first=True)[0]
 
@@ -581,7 +584,7 @@ class Trainer(object):
 
             for image, t in zip(fake_images, txt):
                 im = Image.fromarray(image.data.mul_(127.5).add_(127.5).byte().permute(1, 2, 0).cpu().numpy())
-                im.save('results/{0}/{1}.jpg'.format(self.save_path, t.replace("/", "")[:100]))
+                im.save('results/{0}/{1}.jpg'.format(self.save_path, t.replace("/", "")[:200]))
                 print(t)
 
 
