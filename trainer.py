@@ -102,7 +102,7 @@ class Trainer(object):
         self.save_path = save_path
         self.type = type
 
-        # TODO: put these as runtime.py params        
+        # TODO: put these as runtime.py params
         self.embed_size = 256
         self.hidden_size = 512
         self.num_layers = 1
@@ -111,6 +111,23 @@ class Trainer(object):
         self.disc_pretrain_num_epochs = 5
 
         self.figure_path = './figures/'
+
+        self.caption_generator = CaptionGenerator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers).cuda()
+        self.caption_discriminator = CaptionDiscriminator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers).cuda()
+
+        pretrained_caption_gen = './checkpoints/pretrained-generator-20.pkl'
+        pretrained_caption_disc = './checkpoints/pretrained-discriminator-5.pkl'
+
+        if os.path.exists(pretrained_caption_gen):
+            print('loaded pretrained caption generator')
+            self.caption_generator.load_state_dict(torch.load(pretrained_caption_gen))
+
+        if os.path.exists(pretrained_caption_disc):
+            print('loaded pretrained caption discriminator')
+            self.caption_discriminator.load_state_dict(torch.load(pretrained_caption_disc))
+        
+        self.optim_captionG = torch.optim.Adam(list(self.caption_generator.parameters()))
+        self.optim_captionD = torch.optim.Adam(list(self.caption_discriminator.parameters()))
 
 
     def train(self, cls=False, interp=False):
@@ -361,8 +378,14 @@ class Trainer(object):
         l1_loss = nn.L1Loss()
         iteration = 0
 
+        # cycle gan params
+        lambda_a = 2
+        lambda_b = 2
+        mle_criterion = nn.CrossEntropyLoss() 
+
         gen_losses = []
         disc_losses = []
+        cycle_a_losses = []
         for epoch in tqdm(range(self.num_epochs)):
             for sample in tqdm(self.data_loader):
                 # pdb.set_trace()
@@ -373,6 +396,8 @@ class Trainer(object):
                 wrong_images = sample['wrong_images'] # 64x3x64x64
                 right_images128 = sample['right_images128'] # 64x3x128x128
                 wrong_images128 = sample['wrong_images128'] # 64x3x128x128
+                right_captions = sample['captions']
+                right_lengths = sample['lengths']
 
                 if is_cuda:
                     right_images = Variable(right_images.float()).cuda()
@@ -380,12 +405,14 @@ class Trainer(object):
                     wrong_images = Variable(wrong_images.float()).cuda()
                     right_images128 = Variable(right_images128.float()).cuda()
                     wrong_images128 = Variable(wrong_images128.float()).cuda()
+                    right_captions = Variable(right_captions.long()).cuda()
                 else:
                     right_images = Variable(right_images.float())
                     right_embed = Variable(right_embed.float())
                     wrong_images = Variable(wrong_images.float())
                     right_images128 = Variable(right_images128.float())
                     wrong_images128 = Variable(wrong_images128.float())
+                    right_captions = Variable(right_captions.long())
 
                 real_labels = torch.ones(right_images.size(0))
                 fake_labels = torch.zeros(right_images.size(0))
@@ -530,29 +557,42 @@ class Trainer(object):
                 g_loss2.backward()
                 self.optimG2.step()
 
-                gen_losses.append(g_loss.data[0])
-                disc_losses.append(d_loss.data[0])
+                gen_losses.append(g_loss2.data[0])
+                disc_losses.append(d_loss2.data[0])
+
+                # Generate caption with caption GAN (inverse GAN)
+                # fake_images.requires_grad = False # freeze the caption generator
+                sampled_captions, _ = self.caption_generator.forward(fake_images, right_captions, right_lengths)
+                targets = pack_padded_sequence(right_captions, right_lengths, batch_first=True)[0]
+                loss_cycle_A = mle_criterion(sampled_captions, targets)* lambda_a
+                loss_cycle_A.backward()
+                self.optimG2.step()
+                self.optim_captionG.step()
+                cycle_a_losses.append(loss_cycle_A.data[0])
 
             with open('gen.pkl', 'wb') as f_gen, open('disc.pkl', 'wb') as f_disc:
                 pickle.dump(gen_losses, f_gen)
                 pickle.dump(disc_losses, f_disc)
 
-
-            """x = list(range(len(gen_losses)))
-            plt.plot(x, gen_losses, 'g-', label='gen loss')
-            plt.plot(x, disc_losses, 'b-', label='disc loss')
-            plt.legend()
-            plt.savefig('gen_vs_disc_.png')
-            plt.clf()"""
-
             if (epoch+1) % 10 == 0:
             # if (epoch+1) % 5 == 0:
                 Utils.save_checkpoint(self.discriminator, self.generator, self.checkpoints_path, self.save_path, epoch+1)
                 Utils.save_checkpoint(self.discriminator2, self.generator2, self.checkpoints_path, self.save_path, epoch+1, False, 2)
+                torch.save(self.caption_discriminator.state_dict(), os.path.join(self.checkpoints_path, 'cycle_caption_disc-%d.pkl' % (epoch + 1)))
+                torch.save(self.caption_generator.state_dict(), os.path.join(self.checkpoints_path, 'cycle_caption_gen-%d.pkl' % (epoch + 1) ))
 
-            # Training inverse GAN
+        # Plot pretraining figures
+        plt.plot(disc_losses, label='stage 1 disc losses')
+        plt.savefig(self.figure_path + 'stage_1_disc_losses.png')
+        plt.clf()
 
+        plt.plot(gen_losses, label='stage_1_gen_loss')
+        plt.savefig(self.figure_path + 'stage_1_gen_losses.png')
+        plt.clf()
 
+        plt.plot(disc_losses, label='cycle_a_losses')
+        plt.savefig(self.figure_path + 'cycle_a_losses.png')
+        plt.clf()
 
 
     def predict(self, gan_type='gan'):

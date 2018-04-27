@@ -19,6 +19,7 @@ from tqdm import tqdm
 import pickle
 import re
 import nltk
+import string
 
 with open('config.yaml', 'r') as f:
     config = yaml.load(f)
