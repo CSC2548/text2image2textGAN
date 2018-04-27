@@ -60,8 +60,9 @@ def sanitize_string(caption):
     caption = caption.strip()
     caption = caption.encode('ascii', 'ignore')
     caption = caption.decode('ascii')
-    caption = re.sub(r'[!\"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~]+', '', caption)
-    tokens = nltk.tokenize.word_tokenize(caption.lower())
+    exclude = set(string.punctuation)
+    preproc_caption = ''.join(ch for ch in caption if ch not in exclude)
+    tokens = nltk.tokenize.word_tokenize(preproc_caption.lower())
     return tokens
 
 def build_vocab():
