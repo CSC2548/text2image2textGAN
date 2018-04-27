@@ -11,17 +11,22 @@ import pdb
 import torch.nn.functional as F
 import pandas as pd
 import torchvision.transforms as transforms
+from build_vocab import *
+import nltk
 
 class Text2ImageDataset(Dataset):
 
-    def __init__(self, datasetFile, transform=None, split=0):
+    def __init__(self, datasetFile, dataset_type, vocab, transform=None, split=0):
         self.datasetFile = datasetFile
+        self.dataset_type = dataset_type
+        self.vocab = vocab
         self.transform = transform
         self.dataset = None
         self.dataset_keys = None
         self.split = 'train' if split == 0 else 'valid' if split == 1 else 'test'
-        self.bboxes_df = pd.read_table('bounding_boxes.txt', sep=' ', header=None)
-        self.image_paths_df = pd.read_table('images.txt', sep='\s+|\/+', header=None)   
+        self.bboxes_df = pd.read_table('data/bounding_boxes.txt', sep=' ', header=None)
+        self.image_paths_df = pd.read_table('data/images.txt', sep='\s+|\/+', header=None)
+        self.birds_caption_path_root = './data/birds_captions/'
         self.h5py2int = lambda x: int(np.array(x))
 
     def __len__(self):
@@ -53,43 +58,51 @@ class Text2ImageDataset(Dataset):
         example_name = self.dataset_keys[idx]
         # example_name = self.dataset_keys[0]
         example = self.dataset[self.split][example_name]
-        index_found = self.image_paths_df.index[self.image_paths_df[2]==(example_name[:-2]+'.jpg')].values[0]
-        if index_found == None:
-            print('ERROR: cannot find image index')
 
-        # find right image bbox
-        df_bbox = self.bboxes_df.iloc[[index_found]]
-        bbox_x = df_bbox[1].values[0]
-        bbox_y = df_bbox[2].values[0]
-        bbox_w = df_bbox[3].values[0]
-        bbox_h = df_bbox[4].values[0]
-        
         right_image = bytes(np.array(example['img']))
         right_embed = np.array(example['embeddings'], dtype=float)
-        wrong_name, wrong_example = self.find_wrong_image(example['class']) 
-        # wrong_image = bytes(np.array(self.find_wrong_image(example['class'])))
+
+        wrong_name, wrong_example, wrong_txt = self.find_wrong_image(example['class']) 
         wrong_image = bytes(np.array(wrong_example))
-        inter_embed = np.array(self.find_inter_embed())
+        if self.dataset_type=='birds':
+            wrong_index_found = self.image_paths_df.index[self.image_paths_df[2]==(example_name[:-2]+'.jpg')].values[0]
+            if wrong_index_found == None:
+                print('ERROR: cannot find image index')
+            wrong_txt_sub_path = self.image_paths_df.iloc[[wrong_index_found]][1].values[0] + '/' + self.image_paths_df.iloc[[wrong_index_found]][2].values[0][:-3] + 'txt'
+            wrong_txt_path = self.birds_caption_path_root + wrong_txt_sub_path
+            wrong_txt = open(wrong_txt_path, 'r').readlines()[0]
 
-        # find wrong image bbox
-        index_found_wrong = self.image_paths_df.index[self.image_paths_df[2]==(wrong_name[:-2]+'.jpg')].values[0]
-        if index_found_wrong == None:
-            print('ERROR: cannot find wrong image')
+            index_found = self.image_paths_df.index[self.image_paths_df[2]==(example_name[:-2]+'.jpg')].values[0]
+            if index_found == None:
+                print('ERROR: cannot find image index')
 
-        df_bbox_wrong = self.bboxes_df.iloc[[index_found_wrong]]
-        wrong_bbox_x = df_bbox_wrong[1].values[0]
-        wrong_bbox_y = df_bbox_wrong[2].values[0]
-        wrong_bbox_w = df_bbox_wrong[3].values[0]
-        wrong_bbox_h = df_bbox_wrong[4].values[0]
+            # find right image bbox
+            df_bbox = self.bboxes_df.iloc[[index_found]]
+            bbox_x = df_bbox[1].values[0]
+            bbox_y = df_bbox[2].values[0]
+            bbox_w = df_bbox[3].values[0]
+            bbox_h = df_bbox[4].values[0]
+        
+            # find wrong image bbox
+            index_found_wrong = self.image_paths_df.index[self.image_paths_df[2]==(wrong_name[:-2]+'.jpg')].values[0]
+            if index_found_wrong == None:
+                print('ERROR: cannot find wrong image')
+
+            df_bbox_wrong = self.bboxes_df.iloc[[index_found_wrong]]
+            wrong_bbox_x = df_bbox_wrong[1].values[0]
+            wrong_bbox_y = df_bbox_wrong[2].values[0]
+            wrong_bbox_w = df_bbox_wrong[3].values[0]
+            wrong_bbox_h = df_bbox_wrong[4].values[0]
 
         byte_right_image = io.BytesIO(right_image)
         byte_wrong_image = io.BytesIO(wrong_image)
 
         right_image = Image.open(byte_right_image)
         wrong_image = Image.open(byte_wrong_image)
-        
-        right_image = self.crop_image(right_image, bbox=[bbox_x, bbox_y, bbox_w, bbox_h]) 
-        wrong_image = self.crop_image(wrong_image, bbox=[wrong_bbox_x, wrong_bbox_y, wrong_bbox_w, wrong_bbox_h]) 
+
+        if self.dataset_type == 'birds':
+            right_image = self.crop_image(right_image, bbox=[bbox_x, bbox_y, bbox_w, bbox_h]) 
+            wrong_image = self.crop_image(wrong_image, bbox=[wrong_bbox_x, wrong_bbox_y, wrong_bbox_w, wrong_bbox_h]) 
 
         # right_image = Image.open(byte_right_image).resize((64, 64))
         # wrong_image = Image.open(byte_wrong_image).resize((64, 64))
@@ -112,14 +125,42 @@ class Text2ImageDataset(Dataset):
 
         txt = np.array(example['txt']).astype(str)
 
+        # preprocess txt and wrong_txt
+        txt = str(txt)
+        txt = txt.strip()
+        txt = txt.encode('ascii', 'ignore')
+        txt = txt.decode('ascii')
+        exclude = set(string.punctuation)
+        preproc_txt = ''.join(ch for ch in txt if ch not in exclude)
+        tokens = nltk.tokenize.word_tokenize(preproc_txt.lower())
+        caption = []
+        caption.append(self.vocab('<start>'))
+        caption.extend([self.vocab(token) for token in tokens])
+        caption.append(self.vocab('<end>'))
+        caption = torch.Tensor(caption)
+
+
+        wrong_txt = wrong_txt.strip()
+        wrong_txt = wrong_txt.encode('ascii', 'ignore')
+        wrong_txt = wrong_txt.decode('ascii')
+        exclude = set(string.punctuation)
+        preproc_wrong_txt = ''.join(ch for ch in wrong_txt if ch not in exclude)
+        wrong_tokens = nltk.tokenize.word_tokenize(preproc_wrong_txt.lower())
+        wrong_caption = []
+        wrong_caption.append(self.vocab('<start>'))
+        wrong_caption.extend([self.vocab(token) for token in wrong_tokens])
+        wrong_caption.append(self.vocab('<end>'))
+        wrong_caption = torch.Tensor(wrong_caption)
+
         sample = {
                 'right_images': torch.FloatTensor(right_image),
                 'right_embed': torch.FloatTensor(right_embed),
                 'wrong_images': torch.FloatTensor(wrong_image),
-                'inter_embed': torch.FloatTensor(inter_embed),
-                'txt': str(txt),
+                'caption': caption,
+                'txt': txt,
                 'right_images128': torch.FloatTensor(right_image128),
-                'wrong_images128': torch.FloatTensor(wrong_image128)
+                'wrong_images128': torch.FloatTensor(wrong_image128),
+                'wrong_caption': wrong_caption
                 }
 
         sample['right_images'] = sample['right_images'].sub_(127.5).div_(127.5)
@@ -137,7 +178,7 @@ class Text2ImageDataset(Dataset):
         _category = example['class']
 
         if _category != category:
-            return example_name, example['img']
+            return example_name, example['img'], str(np.array(example['txt']))
 
         return self.find_wrong_image(category)
 
@@ -169,3 +210,71 @@ class Text2ImageDataset(Dataset):
             img = rgb
 
         return img.transpose(2, 0, 1)
+
+
+def collate_fn(data):
+    """Creates mini-batch tensors from the list of tuples (image, caption).
+    
+    We should build custom collate_fn rather than using default collate_fn, 
+    because merging caption (including padding) is not supported in default.
+
+    Args:
+        data: dictionary with keys (right_images, right_embed, wrong_images, caption, 
+                                    right_images128, wrong_images128, wrong_caption). 
+
+    Returns:
+        sample: dictionary with keys sorted by len(caption) for right images/embed etc,
+                                   and by len(wrong_caption) for wrong images, wrong_caption.
+    """
+
+    collate_data = {}
+
+    # Sort a data list by caption length (descending order).
+    data.sort(key=lambda x: x['caption'].size(0), reverse=True)
+
+    captions = []
+    right_images = []
+    right_embeds = []
+    wrong_images = []
+    right_images128 = []
+    wrong_images128 = []
+    collate_data['txt'] = []
+    for i in range(len(data)):
+        collate_data['txt'].append(data[i]['txt'])
+        captions.append(data[i]['caption'])
+        right_images.append(data[i]['right_images'])
+        right_embeds.append(data[i]['right_embed'])
+        wrong_images.append(data[i]['wrong_images'])
+        right_images128.append(data[i]['right_images128'])
+        wrong_images128.append(data[i]['wrong_images128'])
+         
+
+    # sort and get captions, lengths, images, embeds etc
+    lengths = [len(cap) for cap in captions]
+    collate_data['lengths'] = lengths
+    collate_data['captions'] = torch.zeros(len(captions), max(lengths)).long()
+    for i, cap in enumerate(captions):
+        end = lengths[i]
+        collate_data['captions'][i, :end] = cap[:end]
+
+    collate_data['right_images'] = torch.stack(right_images, 0)
+    collate_data['right_embed'] = torch.stack(right_embeds, 0)
+    collate_data['wrong_images'] = torch.stack(wrong_images, 0)
+    collate_data['right_images128'] = torch.stack(right_images128, 0)
+    collate_data['wrong_images128'] = torch.stack(wrong_images128, 0)
+
+    # sort and get wrong_captions, wrong_lengths
+    wrong_captions = []
+    wrong_lengths = []
+    for i in range(len(data)):
+         wrong_captions.append(data[i]['wrong_caption'])
+    wrong_captions.sort(key=lambda x: len(x), reverse=True)
+    wrong_lengths = [len(cap) for cap in wrong_captions]    
+    collate_data['wrong_lengths'] = wrong_lengths
+    collate_data['wrong_captions'] = torch.zeros(len(wrong_captions), max(wrong_lengths)).long()
+    for i, cap in enumerate(wrong_captions):
+        end = wrong_lengths[i]
+        collate_data['wrong_captions'][i, :end] = cap[:end]
+   
+ 
+    return collate_data

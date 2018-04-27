@@ -5,7 +5,7 @@ from torch import nn
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 
-from txt2image_dataset import Text2ImageDataset
+from txt2image_dataset import Text2ImageDataset, collate_fn
 from models.gan_factory import gan_factory
 from utils import Utils
 from PIL import Image
@@ -18,8 +18,16 @@ import matplotlib.pyplot as plt
 
 import pdb
 import pickle
+from build_vocab import Vocabulary 
+from caption_gan_model import CaptionDiscriminator, CaptionGenerator
+from torch.nn.utils.rnn import *
 
 is_cuda = torch.cuda.is_available()
+
+def to_var(x, volatile=False):
+    if torch.cuda.is_available():
+        x = x.cuda()
+    return Variable(x, volatile=volatile)
 
 class Trainer(object):
     def __init__(self, type, dataset, split, lr, diter, vis_screen, save_path, l1_coef, l2_coef, pre_trained_gen, pre_trained_disc, batch_size, num_workers, epochs, pre_trained_disc_B, pre_trained_gen_B):
@@ -59,26 +67,30 @@ class Trainer(object):
             self.generator2.apply(Utils.weights_init)
 
         if dataset == 'birds':
-            self.dataset = Text2ImageDataset(config['birds_dataset_path'], split=split)
+            with open('./data/birds_vocab.pkl', 'rb') as f:
+                self.vocab = pickle.load(f)
+            self.dataset = Text2ImageDataset(config['birds_dataset_path'], dataset_type='birds', vocab=self.vocab, split=split)
         elif dataset == 'flowers':
-            self.dataset = Text2ImageDataset(config['flowers_dataset_path'], split=split)
+            with open('./data/flowers_vocab.pkl', 'rb') as f:
+                self.vocab = pickle.load(f)
+            self.dataset = Text2ImageDataset(config['flowers_dataset_path'], dataset_type='flowers', vocab=self.vocab, split=split)
         else:
             print('Dataset not supported, please select either birds or flowers.')
             exit()
 
         self.noise_dim = 100
         self.batch_size = batch_size
-        self.num_workers = num_workers
         self.lr = lr
         self.beta1 = 0.5
         self.num_epochs = epochs
         self.DITER = diter
+        self.num_workers = num_workers
 
         self.l1_coef = l1_coef
         self.l2_coef = l2_coef
 
         self.data_loader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=True,
-                                num_workers=self.num_workers)
+                                num_workers=self.num_workers, collate_fn=collate_fn)
 
         self.optimD = torch.optim.Adam(self.discriminator.parameters(), lr=self.lr, betas=(self.beta1, 0.999))
         self.optimG = torch.optim.Adam(self.generator.parameters(), lr=self.lr, betas=(self.beta1, 0.999))
@@ -90,12 +102,107 @@ class Trainer(object):
         self.save_path = save_path
         self.type = type
 
+        # TODO: put these as runtime.py params        
+        self.embed_size = 256
+        self.hidden_size = 512
+        self.num_layers = 1
+
+        self.gen_pretrain_num_epochs = 20
+        self.disc_pretrain_num_epochs = 5
+
+        self.figure_path = './figures/'
+
+
     def train(self, cls=False, interp=False):
 
         if self.type == 'gan':
             self._train_gan(cls, interp)
         elif self.type == 'stackgan':
             self._train_stack_gan(cls, interp)
+        elif self.type == 'pretrain_caption':
+            self._pretrain_caption()
+
+    def _pretrain_caption(self):
+
+        # Create model directory
+        if not os.path.exists(self.checkpoints_path):
+            os.makedirs(self.checkpoints_path)
+        
+        if not os.path.exists(self.figure_path):
+            os.makedirs(self.figure_path)
+
+        # Build the models (Gen)
+        generator = CaptionGenerator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers)
+
+        # Build the models (Disc)
+        discriminator = CaptionDiscriminator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers)
+
+        if torch.cuda.is_available():
+            generator.cuda()
+            discriminator.cuda()
+
+        # Loss and Optimizer (Gen)
+        mle_criterion = nn.CrossEntropyLoss()
+        params_gen = list(generator.parameters())
+        optimizer_gen = torch.optim.Adam(params_gen)
+
+        # Loss and Optimizer (Disc)
+        params_disc = list(discriminator.parameters())
+        optimizer_disc = torch.optim.Adam(params_disc)
+
+        disc_losses = []
+        gen_losses = []
+        for epoch in tqdm(range(max([int(self.gen_pretrain_num_epochs), int(self.disc_pretrain_num_epochs)]))):
+            for sample in self.data_loader:
+                images = sample['right_images128'] # 64x3x128x128
+                captions = sample['captions']
+                lengths = sample['lengths']
+                wrong_captions = sample['wrong_captions']
+                wrong_lengths = sample['wrong_lengths']
+
+                images = to_var(images, volatile=True)
+                captions = to_var(captions)
+                wrong_captions = to_var(wrong_captions)
+                
+                targets = pack_padded_sequence(captions, lengths, batch_first=True)[0]
+
+                if epoch < int(self.gen_pretrain_num_epochs):
+                    generator.zero_grad()
+                    outputs, _ = generator(images, captions, lengths)
+                    loss_gen = mle_criterion(outputs, targets)
+                    gen_losses.append(loss_gen.cpu().data.numpy()[0])
+                    loss_gen.backward()
+                    optimizer_gen.step()
+
+                if epoch < int(self.disc_pretrain_num_epochs):
+                    discriminator.zero_grad()
+                    rewards_real = discriminator(images, captions, lengths)
+                    # rewards_fake = discriminator(images, sampled_captions, sampled_lengths) 
+                    rewards_wrong = discriminator(images, wrong_captions, wrong_lengths)
+                    real_loss = -torch.mean(torch.log(rewards_real))
+                    # fake_loss = -torch.mean(torch.clamp(torch.log(1 - rewards_fake), min=-1000))
+                    wrong_loss = -torch.mean(torch.clamp(torch.log(1 - rewards_wrong), min=-1000))
+                    loss_disc = real_loss + wrong_loss # + fake_loss, no fake_loss because this is pretraining
+
+                    disc_losses.append(loss_disc.cpu().data.numpy()[0])
+                    loss_disc.backward()
+                    optimizer_disc.step()
+
+
+        # Save pretrained models
+        torch.save(discriminator.state_dict(), os.path.join(self.checkpoints_path, 'pretrained-discriminator-%d.pkl' %int(self.disc_pretrain_num_epochs)))
+        torch.save(generator.state_dict(), os.path.join(self.checkpoints_path, 'pretrained-generator-%d.pkl' %int(self.gen_pretrain_num_epochs)))
+
+        # Plot pretraining figures
+        plt.plot(disc_losses, label='pretraining_caption_disc_loss')
+        plt.savefig(self.figure_path + 'pretraining_caption_disc_losses.png')
+        plt.clf()
+
+        plt.plot(gen_losses, label='pretraining_gen_loss')
+        plt.savefig(self.figure_path + 'pretraining_gen_losses.png')
+        plt.clf()
+
+
 
     def _train_gan(self, cls, interp):
         criterion = nn.BCELoss()
@@ -438,10 +545,15 @@ class Trainer(object):
             plt.savefig('gen_vs_disc_.png')
             plt.clf()"""
 
-            # if (epoch) % 10 == 0:
-            if (epoch+1) % 5 == 0:
-                Utils.save_checkpoint(self.discriminator, self.generator, self.checkpoints_path, self.save_path, epoch)
-                Utils.save_checkpoint(self.discriminator2, self.generator2, self.checkpoints_path, self.save_path, epoch, False, 2)
+            if (epoch+1) % 10 == 0:
+            # if (epoch+1) % 5 == 0:
+                Utils.save_checkpoint(self.discriminator, self.generator, self.checkpoints_path, self.save_path, epoch+1)
+                Utils.save_checkpoint(self.discriminator2, self.generator2, self.checkpoints_path, self.save_path, epoch+1, False, 2)
+
+            # Training inverse GAN
+
+
+
 
     def predict(self, gan_type='gan'):
         for sample in self.data_loader:
@@ -472,7 +584,7 @@ class Trainer(object):
 
             for image, t in zip(fake_images, txt):
                 im = Image.fromarray(image.data.mul_(127.5).add_(127.5).byte().permute(1, 2, 0).cpu().numpy())
-                im.save('results/{0}/{1}.jpg'.format(self.save_path, t.replace("/", "")[:100]))
+                im.save('results/{0}/{1}.jpg'.format(self.save_path, t.replace("/", "")[:200]))
                 print(t)
 
 

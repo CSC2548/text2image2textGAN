@@ -2,6 +2,7 @@ from trainer import Trainer
 import argparse
 from PIL import Image
 import os
+from build_vocab import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--type", default='gan')
@@ -21,7 +22,7 @@ parser.add_argument('--pre_trained_gen_B', default=None)
 parser.add_argument('--dataset', default='flowers')
 parser.add_argument('--split', default=0, type=int)
 parser.add_argument('--batch_size', default=64, type=int)
-parser.add_argument('--num_workers', default=8, type=int)
+parser.add_argument('--num_workers', default=16, type=int)
 parser.add_argument('--epochs', default=55, type=int)
 args = parser.parse_args()
 

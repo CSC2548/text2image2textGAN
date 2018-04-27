@@ -1,5 +1,6 @@
 pre-trained models/*
 dataset/*
+data/*
 *.pyc
 .idea/
 checkpoints/*
@@ -11,6 +12,10 @@ images.txt
 __pycache__/
 *.py[cod]
 *$py.class
+*.swp
+fitures/*
+*.zip
+*.swp
 
 # C extensions
 *.so
