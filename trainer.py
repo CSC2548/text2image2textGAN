@@ -21,6 +21,7 @@ import pickle
 from build_vocab import Vocabulary 
 from caption_gan_model import CaptionDiscriminator, CaptionGenerator
 from torch.nn.utils.rnn import *
+# torch.manual_seed(7)
 
 is_cuda = torch.cuda.is_available()
 
@@ -596,6 +597,7 @@ class Trainer(object):
 
 
     def predict(self, gan_type='gan'):
+        count = 0
         for sample in self.data_loader:
             right_images = sample['right_images']
             right_embed = sample['right_embed']
@@ -626,7 +628,9 @@ class Trainer(object):
                 im = Image.fromarray(image.data.mul_(127.5).add_(127.5).byte().permute(1, 2, 0).cpu().numpy())
                 im.save('results/{0}/{1}.jpg'.format(self.save_path, t.replace("/", "")[:200]))
                 print(t)
-
+            count += 1
+            if count == 1:
+                break
 
 
 
