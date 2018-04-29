@@ -97,7 +97,7 @@ if __name__ == '__main__':
     # IgnoreLabelDataset(cifar)
 
     # dataset = Text2ImageDataset(config['flowers_dataset_path'], dataset_type='flowers', vocab=self.vocab, split=split)
-    dataset = EvalDataset('./cycleresults250/', transform=transforms.Compose([
+    dataset = EvalDataset('./results/', transform=transforms.Compose([
                                  transforms.Scale(32),
                                  transforms.ToTensor(),
                                  transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))

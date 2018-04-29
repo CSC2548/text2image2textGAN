@@ -112,30 +112,17 @@ class Trainer(object):
 
         self.figure_path = './figures/'
 
-<<<<<<< Updated upstream
         self.caption_generator = CaptionGenerator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers).cuda()
         self.caption_discriminator = CaptionDiscriminator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers).cuda()
-=======
-        self.caption_generator = CaptionGenerator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers)
-        self.caption_discriminator = CaptionDiscriminator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers)
->>>>>>> Stashed changes
 
         pretrained_caption_gen = './checkpoints/pretrained-generator-20.pkl'
         pretrained_caption_disc = './checkpoints/pretrained-discriminator-5.pkl'
 
-<<<<<<< Updated upstream
         if os.path.exists(pretrained_caption_gen):
             print('loaded pretrained caption generator')
             self.caption_generator.load_state_dict(torch.load(pretrained_caption_gen))
 
         if os.path.exists(pretrained_caption_disc):
-=======
-        if os.exists(pretrained_caption_gen):
-            print('loaded pretrained caption generator')
-            self.caption_generator.load_state_dict(torch.load(pretrained_caption_gen))
-
-        if os.exists(pretrained_caption_disc):
->>>>>>> Stashed changes
             print('loaded pretrained caption discriminator')
             self.caption_discriminator.load_state_dict(torch.load(pretrained_caption_disc))
         
@@ -410,11 +397,7 @@ class Trainer(object):
                 right_images128 = sample['right_images128'] # 64x3x128x128
                 wrong_images128 = sample['wrong_images128'] # 64x3x128x128
                 right_captions = sample['captions']
-<<<<<<< Updated upstream
                 right_lengths = sample['lengths']
-=======
-                right_lengths = sample['lenghts']
->>>>>>> Stashed changes
 
                 if is_cuda:
                     right_images = Variable(right_images.float()).cuda()
@@ -587,14 +570,6 @@ class Trainer(object):
                 self.optim_captionG.step()
                 cycle_a_losses.append(loss_cycle_A.data[0])
 
-                # Generate caption with caption GAN (inverse GAN)
-                # fake_images.requires_grad = False # freeze the caption generator
-                sampled_captions = self.caption_generator.forward(fake_images, right_captons, right_lengths)
-                loss_cycle_A = mle_criterion(sampled_captions, targets)* lambda_a
-                loss_cycle_A.backward()
-                self.optimG2.step()
-                self.optim_captionG.step()
-
             with open('gen.pkl', 'wb') as f_gen, open('disc.pkl', 'wb') as f_disc:
                 pickle.dump(gen_losses, f_gen)
                 pickle.dump(disc_losses, f_disc)
@@ -606,7 +581,6 @@ class Trainer(object):
                 torch.save(self.caption_discriminator.state_dict(), os.path.join(self.checkpoints_path, 'cycle_caption_disc-%d.pkl' % (epoch + 1)))
                 torch.save(self.caption_generator.state_dict(), os.path.join(self.checkpoints_path, 'cycle_caption_gen-%d.pkl' % (epoch + 1) ))
 
-<<<<<<< Updated upstream
         # Plot pretraining figures
         plt.plot(disc_losses, label='stage 1 disc losses')
         plt.savefig(self.figure_path + 'stage_1_disc_losses.png')
@@ -619,8 +593,6 @@ class Trainer(object):
         plt.plot(disc_losses, label='cycle_a_losses')
         plt.savefig(self.figure_path + 'cycle_a_losses.png')
         plt.clf()
-=======
->>>>>>> Stashed changes
 
 
     def predict(self, gan_type='gan'):
@@ -657,7 +629,7 @@ class Trainer(object):
                 im.save('results/{0}/{1}.jpg'.format(self.save_path, t.replace("/", "")[:200]))
                 print(t)
             count += 1
-            if count == 1:
+            if count == 100:
                 break
 
 
