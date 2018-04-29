@@ -87,8 +87,8 @@ class Utils(object):
         if not os.path.exists(path):
             os.makedirs(path)
         if not inverse:
-            torch.save(netD.state_dict(), '{0}/disc_stage_{2}_epoch_{1}.pth'.format(path, epoch, stage))
-            torch.save(netG.state_dict(), '{0}/gen_stage_{2}_epoch_{1}.pth'.format(path, epoch, stage))
+            torch.save(netD.state_dict(), '{0}/cycle_disc_stage_{2}_epoch_{1}.pth'.format(path, epoch, stage))
+            torch.save(netG.state_dict(), '{0}/cycle_gen_stage_{2}_epoch_{1}.pth'.format(path, epoch, stage))
         else:
             torch.save(netD.state_dict(), '{0}/inv_disc_{1}.pth'.format(path, epoch))
             torch.save(netG.state_dict(), '{0}/inv_gen_{1}.pth'.format(path, epoch))
