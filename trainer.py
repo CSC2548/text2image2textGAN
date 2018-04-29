@@ -562,6 +562,7 @@ class Trainer(object):
 
                 # Generate caption with caption GAN (inverse GAN)
                 # fake_images.requires_grad = False # freeze the caption generator
+                self.caption_generator.zero_grad()
                 sampled_captions, _ = self.caption_generator.forward(fake_images, right_captions, right_lengths)
                 targets = pack_padded_sequence(right_captions, right_lengths, batch_first=True)[0]
                 loss_cycle_A = mle_criterion(sampled_captions, targets)* lambda_a
@@ -629,7 +630,7 @@ class Trainer(object):
                 im.save('results/{0}/{1}.jpg'.format(self.save_path, t.replace("/", "")[:200]))
                 print(t)
             count += 1
-            if count == 100:
+            if count == 2:
                 break
 
 
