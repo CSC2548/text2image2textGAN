@@ -13,8 +13,9 @@ from tqdm import tqdm
 import pdb
 
 from txt2image_dataset import Text2ImageDataset
+from eval_dataset import EvalDataset
 
-def inception_score(imgs, cuda=True, batch_size=64, resize=False, splits=1):
+def inception_score(imgs, cuda=True, batch_size=32, resize=False, splits=1):
     """Computes the inception score of the generated images imgs
     imgs -- Torch dataset of (3xHxW) numpy images normalized in the range [-1, 1]
     cuda -- whether or not to run on GPU
@@ -85,16 +86,24 @@ if __name__ == '__main__':
     import torchvision.datasets as dset
     import torchvision.transforms as transforms
 
-    cifar = dset.CIFAR10(root='data/', download=True,
-                             transform=transforms.Compose([
+    # cifar = dset.CIFAR10(root='data/', download=True,
+    #                          transform=transforms.Compose([
+    #                              transforms.Scale(32),
+    #                              transforms.ToTensor(),
+    #                              transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    #                          ])
+    # )
+
+    # IgnoreLabelDataset(cifar)
+
+    # dataset = Text2ImageDataset(config['flowers_dataset_path'], dataset_type='flowers', vocab=self.vocab, split=split)
+    dataset = EvalDataset('./cycleresults250/', transform=transforms.Compose([
                                  transforms.Scale(32),
                                  transforms.ToTensor(),
                                  transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                              ])
     )
-
-    IgnoreLabelDataset(cifar)
-
-    # dataset = Text2ImageDataset(config['flowers_dataset_path'], dataset_type='flowers', vocab=self.vocab, split=split)
     print ("Calculating Inception Score...")
-    print (inception_score(IgnoreLabelDataset(cifar), cuda=True, batch_size=64, resize=True, splits=10))
+
+    print (inception_score(dataset, cuda=True, batch_size=32, resize=True, splits=10))
+
