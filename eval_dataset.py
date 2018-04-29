@@ -4,6 +4,7 @@ import torch.utils.data as data
 from PIL import Image
 import os
 from tqdm import tqdm
+import numpy as np
 
 class EvalDataset(data.Dataset):
     def __init__(self, data_dir, transform=None): 
