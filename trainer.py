@@ -107,8 +107,8 @@ class Trainer(object):
         self.hidden_size = 512
         self.num_layers = 1
 
-        self.gen_pretrain_num_epochs = 20
-        self.disc_pretrain_num_epochs = 5
+        self.gen_pretrain_num_epochs = 100
+        self.disc_pretrain_num_epochs = 20
 
         self.figure_path = './figures/'
 
@@ -630,7 +630,7 @@ class Trainer(object):
                 im.save('results/{0}/{1}.jpg'.format(self.save_path, t.replace("/", "")[:200]))
                 print(t)
             count += 1
-            if count == 2:
+            if count == 1:
                 break
 
 
