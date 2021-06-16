@@ -111,9 +111,12 @@ class Trainer(object):
         self.disc_pretrain_num_epochs = 20
 
         self.figure_path = './figures/'
-
-        self.caption_generator = CaptionGenerator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers).cuda()
-        self.caption_discriminator = CaptionDiscriminator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers).cuda()
+        if is_cuda:
+            self.caption_generator = CaptionGenerator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers).cuda()
+            self.caption_discriminator = CaptionDiscriminator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers).cuda()
+        else:
+            self.caption_generator = CaptionGenerator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers)
+            self.caption_discriminator = CaptionDiscriminator(self.embed_size, self.hidden_size, len(self.vocab), self.num_layers)           
 
         pretrained_caption_gen = './checkpoints/pretrained-generator-20.pkl'
         pretrained_caption_disc = './checkpoints/pretrained-discriminator-5.pkl'

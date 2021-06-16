@@ -1,0 +1,49 @@
+Setting up environment
+
+1. create a virtual environment, use python 3.6.
+2. Output of pip freeze in the environment I used is given in requirements.txt, can be installed using pip3 -r requirements.txt, make sure you have already installed pip.
+3. Create a folder with appropriate name, say root_folder, make it the working directory.
+3. Run git clone https://github.com/CSC2548/text2image2textGAN 
+, let's call this folder just created as 'the folder' or main_folder hereon.
+Downloading datasets
+
+Let's try to train the model on birds dataset.
+
+4. Download cub_icml.tar.gz from https://drive.google.com/file/d/0B0ywwgffWnLLLUc2WHYzM0Q2eWc/view into the folder.
+
+5. Run curl -o CUB_200_2011.tgz http://www.vision.caltech.edu/visipedia-data/CUB-200-2011/CUB_200_2011.tgz
+
+6. Download cvpr2016_cub.tar.gz from https://drive.google.com/file/d/0B0ywwgffWnLLZW9uVHNjb2JmNlE/view
+
+7. Install skipthoughts using pip install skipthoughts.
+
+8. Run git clone https://github.com/Cadene/skip-thoughts.torch.git
+
+9. Extract all the compressed stuff downloaded.
+
+10. In folder (create if not present) main_folder/data/skip-thoughts , download the following :
+	a) curl -o dictionary.txt http://www.cs.toronto.edu/~rkiros/models/dictionary.txt
+	b) curl -o utable.npy http://www.cs.toronto.edu/~rkiros/models/utable.npy
+	c) curl -o uni_skip.npz http://www.cs.toronto.edu/~rkiros/models/uni_skip.npz 
+
+11. Copy cvpr2016_cub/text_c10 (this dataset was downloaded in #6), to main_folder/data, and rename this just copied text_c10 folder as 'birds_captions'.
+
+12. From CUB_200_2011/CUB_200_2011 (this dataset was downloaded in #5), copy images.txt and bounding_boxes.txt, and paste these files in main_folder/data
+
+13. Now open main_folder/config.yaml. The flowers dataset part doesn't concern us, we will be using birds one. Replace the birds part with following:
+birds_images_path: 'path_to_main_folder/CUB_200_2011/CUB_200_2011/images'
+birds_embedding_path: 'path_to_main_folder/cub_icml'
+birds_text_path: 'path_to_main_folder/cvpr2016_cub/text_c10/'
+birds_dataset_path: path_to_main_folder/birds.hdf5
+
+val_split_path: 'path_to_main_folder/cub_icml/valclasses.txt'
+train_split_path: 'path_to_main_folder/cub_icml/trainclasses.txt'
+test_split_path: 'path_to_main_folder/cub_icml/testclasses.txt'
+
+14. Now, open convert_birds_to_skipthought_hd5_script.py . Un-comment lines 100-102.
+
+15. Now, run python3 convert_birds_to_skipthought_hd5_script.py . It should give a ~6gb birds.hdf5 file, in path specified in config.yaml.
+
+16. Now, run python3 runtime.py --dataset birds
+
+
